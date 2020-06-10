@@ -1,0 +1,138 @@
+stages:
+    - build
+    - compact
+    - deploy
+
+.workaround-off: &workaround-off
+- sed -i '/CFLAGS += $(WORKAROUND_CFLAGS) $(EXTRA_CFLAGS) -fno-pie/s/^/#/' Makefile.housekeeping
+- sed -i '/#CFLAGS += $(WORKAROUND_CFLAGS) $(EXTRA_CFLAGS)  /s/^#//' Makefile.housekeeping
+.workaround-on: &workaround-on
+- sed -i '/CFLAGS += $(WORKAROUND_CFLAGS) $(EXTRA_CFLAGS) -fno-pie/s/^#//' Makefile.housekeeping
+- sed -i '/#CFLAGS += $(WORKAROUND_CFLAGS) $(EXTRA_CFLAGS)  /s/^/#/' Makefile.housekeeping
+
+.buildtest:
+    image: busybox:musl
+    stage: build
+    variables:
+        EMBEDSCRIPT: myscript
+        GIT_DEPTH: '1'
+    script:
+        - tar cvzf artifacts/${EMBEDSCRIPT}.tar.gz scripts/${EMBEDSCRIPT}
+    artifacts:
+        paths:
+            - artifacts/${EMBEDSCRIPT}.tar.gz
+        expire_in: 1 hour
+    only:
+        - alpine
+
+.buildtemplate:
+    # see https://hub.docker.com/_/gcc/
+    image: gcc:9
+    stage: build
+    variables:
+        EMBEDSCRIPT: myscript
+        GIT_DEPTH: '1'
+    before_script:
+        #- apk add --no-cache xz-dev binutils-dev syslinux build-base perl mtools make xorriso
+        - apt update && apt -y install build-essential binutils-dev liblzma-dev syslinux 
+        - gcc --version
+        - mkdir -p artifacts
+        - mkdir -p src/config/local
+        - cp scripts/${EMBEDSCRIPT} src/
+        - cp certs/{vanaware.github.io.pem,ipxe_ca.pem,codesign-full.pem} src/
+    script:
+        - cd src
+        #- make -j 1 {bin-x86_64-linux,bin-i386-linux}/tests.linux EMBED=${EMBEDSCRIPT} CERT=vanaware.github.io.pem,ipxe_ca.pem,codesign-full.pem TRUST=vanaware.github.io.pem,ipxe_ca.pem,codesign-full.pem
+        - *workaround-off
+        - make -j 1 {bin-x86_64-efi,bin-x86_64-efi-sb}/{snponly,ipxe}.{efi,usb} EMBED=${EMBEDSCRIPT} CERT=vanaware.github.io.pem,ipxe_ca.pem,codesign-full.pem TRUST=vanaware.github.io.pem,ipxe_ca.pem,codesign-full.pem
+        - *workaround-on
+        - make -j 1 {bin-i386-pcbios,bin-x86_64-pcbios}/{undionly,ipxe}.{pxe,kpxe,kkpxe,usb,lkrn} EMBED=${EMBEDSCRIPT} CERT=vanaware.github.io.pem,ipxe_ca.pem,codesign-full.pem TRUST=vanaware.github.io.pem,ipxe_ca.pem,codesign-full.pem
+        - tar cvzf ../artifacts/${EMBEDSCRIPT}.tar.gz {bin-x86_64-efi,bin-x86_64-efi-sb,bin-i386-pcbios,bin-x86_64-pcbios,bin-x86_64-linux,bin-i386-linux}/{undionly,snponly,ipxe,tests}.{efi,usb,linux,lkrn,pxe,kpxe,kkpxe,iso} 2>/dev/null || true
+        - cd ..
+        # - make bin/{undionly,ipxe}.{,k,kk}pxe EMBED=ipxescript DEBUG=undi,dhcp
+    after_script:
+        - tar -tvf artifacts/${EMBEDSCRIPT}.tar.gz
+    artifacts:
+        paths:
+            - artifacts/${EMBEDSCRIPT}.tar.gz
+        expire_in: 1 day
+    cache:
+        paths:
+            - src/bin*/*.o
+    only:
+        - alpine
+
+build:githubscript:
+    extends: .buildtemplate
+    #extends: .buildtest
+    variables:
+        EMBEDSCRIPT: githubscript
+
+build:tftpscript:
+    extends: .buildtemplate
+    #extends: .buildtest
+    variables:
+        EMBEDSCRIPT: tftpscript
+
+build:lanscript:
+    extends: .buildtemplate
+    #extends: .buildtest
+    variables:
+        EMBEDSCRIPT: lanscript
+
+build:wanscript:
+    extends: .buildtemplate
+    #extends: .buildtest
+    variables:
+        EMBEDSCRIPT: wanscript
+
+compact:
+    image: alpine:latest
+    stage: compact
+    variables:
+        GIT_STRATEGY: none
+    dependencies:
+        - build:githubscript
+        - build:tftpscript
+        - build:lanscript
+        - build:wanscript
+    before_script:
+        - apk add --no-cache zip tar
+        - ls artifacts -la
+    script:
+        - zip -r download.zip artifacts && tar -czvf download.tar.gz artifacts
+        - rm -rf artifacts
+    after_script:
+        - tar -tvf download.tar.gz
+    artifacts:
+        paths:
+            - download.*
+    only:
+        - alpine
+
+deploy:
+    image: alpine:latest
+    stage: deploy
+    variables:
+        GIT_STRATEGY: none
+    dependencies:
+        - compact
+    before_script:
+        - apk add --no-cache git
+        - git clone --branch=gh-pages ${CI_REPOSITORY_URL} gh-pages
+        - cd gh-pages
+        - git config user.name "${GITLAB_USER_NAME}"
+        - git config user.email ${GITLAB_USER_EMAIL}
+        - git config http.sslverify 'false'
+        - git remote set-url --push origin https://${TOKEN}:x-oauth-basic@github.com/vanaware/ipxe.git
+    script:
+        - mv ../download.* alpine/
+        - git add alpine/download.zip
+        - git add alpine/download.tar.gz
+        - git commit -m "GitLab Runner Pipeline at ${CI_PIPELINE_URL}"
+        - git push origin gh-pages
+    after_script:
+        - cd ..
+        - rm -fr gh-pages
+    only:
+        - alpine

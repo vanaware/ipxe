@@ -64,7 +64,7 @@ FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
  * forced to operate on networks without access to the OCSP servers.
  * Allow the user to explicitly disable the use of OCSP checks.
  */
-#define OCSP_CHECK
+//#define OCSP_CHECK
 
 #include <config/named.h>
 #include NAMED_CONFIG(crypto.h)

@@ -1,0 +1,4 @@
+terminal:
+  script: sleep 60
+
+# https://gitlab.com/help/user/project/web_ide/index.md#web-ide-configuration-file

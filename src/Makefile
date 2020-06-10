@@ -209,7 +209,13 @@ install :
 # Version number calculations
 #
 ifneq ($(wildcard ../.git),)
-VERSIONS := $(shell git describe --tags --always --long --abbrev=1 --match "v*")
+GITTAG :=  $(shell git describe --tags --always --long --abbrev=1 --match "v*")
+ifeq ($(subst ,$(GITTAG),1,1),"v")
+$(file > ../version,$(GITTAG))
+endif
+endif
+ifneq ($(wildcard ../version),)
+VERSIONS := $(shell head -n 1 ../version)
 VERSION_TUPLE	:= $(subst ., ,$(subst -, ,$(patsubst v%,%,$(VERSIONS))))
 VERSION_MAJOR	:= $(word 1,$(VERSION_TUPLE))
 VERSION_MINOR	:= $(word 2,$(VERSION_TUPLE))

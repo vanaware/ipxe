@@ -1,0 +1,68 @@
+#!ipxe
+
+set img_verify enabled ||
+set console console=tty0 ||
+
+set cmdline modules=loop,squashfs quiet nomodeset ip=dhcp ||
+# set acpi acpi=force ||
+
+set branch v3.12 ||
+set version 3.12.0 ||
+set flavor lts ||
+cpuid --ext 29 && set arch x86_64 || set arch x86
+
+# Set Urls
+set repo-url http://dl-cdn.alpinelinux.org/alpine/${branch}/main
+set mirror https://vanaware.github.io/ipxe/alpine
+set img-url ${mirror}/netboot-${version}/${arch}
+set modloop-url ${img-url}/modloop-${flavor}
+set sig-url ${img-url}
+
+set ssh_key ${mirror}/ssh_key ||
+isset ${ssh_key} && set start_sshd yes || set start_sshd no
+iseq ${start_sshd} yes && set ssh_key ssh_key=${ssh_key} || clear ssh_key
+
+# Network
+ifopen
+isset ${net0/mac} && dhcp net0 || goto dhcpnet1
+echo Received DHCP answer on interface net0 && goto netboot
+
+:dhcpnet1
+isset ${net1/mac} && dhcp net1 || goto dhcpnet2
+echo Received DHCP answer on interface net1 && goto netboot
+
+:dhcpnet2
+isset ${net2/mac} && dhcp net2 || goto dhcpall
+echo Received DHCP anser on infterface net2 && goto netboot
+
+:dhcpall
+dhcp && goto netboot || goto dhcperror
+
+:dhcperror
+prompt --key s --timeout 10000 DHCP failed, hit 's' for the iPXE shell; reboot in 10 seconds && shell || reboot
+exit 0
+
+:netboot
+imgfree
+kernel ${img-url}/vmlinuz-${flavor} ${cmdline} alpine_repo=${repo-url} modloop=${modloop-url} ${console} ${acpi} ${ssh_key}
+initrd ${img-url}/initramfs-${flavor}
+iseq ${img_verify} enabled && goto verify_img || goto no_img_verify
+
+:verify_img
+imgtrust
+imgverify vmlinuz-${flavor} ${sig-url}/vmlinuz-${flavor}.sig || goto img_verify_error
+imgverify initramfs-${flavor} ${sig-url}/initramfs-${flavor}.sig || goto img_verify_error
+echo Alpine Image downloaded and verified && goto boot
+
+:img_verify_error
+imgstat
+prompt --key s --timeout 10000 Alpine Image not trusted, hit 's' for the iPXE shell; reboot in 10 seconds && shell || reboot
+exit 0
+
+:no_img_verify
+imgtrust --allow
+echo Alpine Image downloaded && goto boot
+
+:boot
+boot || prompt --key s --timeout 10000 Booting failed, hit 's' for the iPXE shell; reboot in 10 seconds && shell || reboot
+exit 0

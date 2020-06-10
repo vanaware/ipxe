@@ -1,0 +1,4 @@
+.vs/
+options
+src/*.pem
+src/*script

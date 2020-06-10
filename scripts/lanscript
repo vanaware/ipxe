@@ -1,0 +1,62 @@
+#!ipxe
+
+set img_verify disabled ||
+set console console=tty0 ||
+
+set cmdline modules=loop,squashfs quiet nomodeset ip=dhcp apkovl=apkovl ||
+# set acpi acpi=force ||
+
+cpuid --ext 29 && set arch x86_64 || set arch x86
+
+# Set Urls
+set server http://192.168.1.1
+set local-url ${server}/pxe/${net0/mac}/alpine-${arch}
+
+set ssh_key ${server}/pxe/${net0/mac}/ssh_key ||
+isset ${ssh_key} && set start_sshd yes || set start_sshd no
+iseq ${start_sshd} yes && set ssh_key ssh_key=${ssh_key} || clear ssh_key
+
+# Network
+ifopen
+isset ${net0/mac} && dhcp net0 || goto dhcpnet1
+echo Received DHCP answer on interface net0 && goto netboot
+
+:dhcpnet1
+isset ${net1/mac} && dhcp net1 || goto dhcpnet2
+echo Received DHCP answer on interface net1 && goto netboot
+
+:dhcpnet2
+isset ${net2/mac} && dhcp net2 || goto dhcpall
+echo Received DHCP anser on infterface net2 && goto netboot
+
+:dhcpall
+dhcp && goto netboot || goto dhcperror
+
+:dhcperror
+prompt --key s --timeout 10000 DHCP failed, hit 's' for the iPXE shell; reboot in 10 seconds && shell || reboot
+exit 0
+
+:netboot
+imgfree
+kernel ${local-url}/vmlinuz-lts ${cmdline} alpine_dev=nfs:${server}:/srv/pxe/${net0/mac} modloop=${local-url}/modloop-lts ${console} ${acpi} ${ssh_key}
+initrd ${local-url}/initramfs-lts
+iseq ${img_verify} enabled && goto verify_img || goto no_img_verify
+
+:verify_img
+imgtrust
+imgverify vmlinuz-lts ${local-url}/vmlinuz-lts.sig || goto img_verify_error
+imgverify initramfs-lts ${local-url}/initramfs-lts.sig || goto img_verify_error
+echo Alpine Image downloaded and verified && goto boot
+
+:img_verify_error
+imgstat
+prompt --key s --timeout 10000 Alpine Image not trusted, hit 's' for the iPXE shell; reboot in 10 seconds && shell || reboot
+exit 0
+
+:no_img_verify
+imgtrust --allow
+echo Alpine Image downloaded && goto boot
+
+:boot
+boot || prompt --key s --timeout 10000 Booting failed, hit 's' for the iPXE shell; reboot in 10 seconds && shell || reboot
+exit 0

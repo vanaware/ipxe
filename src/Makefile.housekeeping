@@ -451,7 +451,8 @@ CFLAGS		+= -diag-disable 1419 # Missing prototypes
 CFLAGS		+= -diag-disable 1599 # Hidden variables
 CFLAGS		+= -Wall -Wmissing-declarations
 endif
-CFLAGS		+= $(WORKAROUND_CFLAGS) $(EXTRA_CFLAGS)
+CFLAGS += $(WORKAROUND_CFLAGS) $(EXTRA_CFLAGS) -fno-pie
+#CFLAGS += $(WORKAROUND_CFLAGS) $(EXTRA_CFLAGS)  
 ASFLAGS		+= $(WORKAROUND_ASFLAGS) $(EXTRA_ASFLAGS)
 LDFLAGS		+= $(WORKAROUND_LDFLAGS) $(EXTRA_LDFLAGS)
 HOST_CFLAGS	+= -O2 -g
