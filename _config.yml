@@ -1,0 +1,15 @@
+theme: jekyll-theme-tactile
+title: Alpine Netboot iPXE
+description: Boot Alpine Linux diskless images with custom iPXE bootloaders
+show_downloads: true
+github:
+  zip_url: alpine/download.zip
+  tar_url: alpine/download.tar.gz
+  is_project_page: true
+  repository_name: Custom iPXE
+  owner_url: https://github.com/arvati
+  owner_name: arvati
+include: 
+  - alpine/download.zip
+  - alpine/download.tar.gz
+  - alpine/ssh_key

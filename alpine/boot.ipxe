@@ -1,0 +1,118 @@
+#!ipxe
+
+set os Alpine Linux
+set mirror https://vanaware.github.io/ipxe/alpine
+
+iseq ${alpine_loader} true && set img_verify enabled || set img_verify disabled
+set console tty0 ||
+set cmdline modules=loop,squashfs quiet nomodeset ip=dhcp ||
+set default_cmdline default ||
+set ssh_key ${mirror}/ssh_key ||
+set start_sshd yes ||
+set branch v3.12 ||
+set version 3.12.0 ||
+set flavor lts ||
+cpuid --ext 29 && goto x86_64 || goto x86
+
+:x86_64
+set arch x86_64 ||
+goto menu
+
+:x86
+set arch x86 ||
+goto menu
+
+:menu
+set space:hex 20:20
+set space ${space:string}
+menu ${os} ${provider} [ ${arch} ]
+item --gap Boot options
+item branch ${space} Alpine release [ ${branch} ]
+iseq ${arch} x86_64 && item flavor ${space} Kernel flavor [ ${flavor} ] ||
+iseq ${alpine_loader} true && item img_verify ${space} Image verification [ ${img_verify} ] ||
+item cmdline ${space} Linux cmdline [ ${default_cmdline} ]
+item console ${space} Set console [ ${console} ]
+item start_sshd ${space} Start sshd at first boot [ ${start_sshd} ]
+item --gap Booting
+item boot ${space} Boot with above settings
+item --gap Utilities
+item shell ${space} iPXE Shell
+item reboot ${space} Reboot system
+choose item
+goto ${item}
+
+:branch
+menu ${os} ${provider} [ ${arch} ]
+item v3.12 Version 3.12.0
+choose branch || goto shell
+iseq ${branch} v3.12 && set version 3.12.0 ||
+goto menu
+
+:flavor
+menu ${os} ${provider} [ ${arch} ]
+item lts Linux lts
+choose flavor || goto shell
+goto menu
+
+:console
+menu ${os} ${provider} [ ${arch} ]
+item tty0 Console on tty0
+item ttyS0 Console on ttyS0
+item ttyS1 Console on ttyS1
+item custom Enter custom console
+choose console || goto menu
+iseq ${console} custom && goto custom_console ||
+goto menu
+
+:custom_console
+clear console
+echo -n Enter console: && read console
+goto menu
+
+:shell
+echo Type "exit" to return to menu.
+shell
+goto menu
+
+:img_verify
+iseq ${img_verify} enabled && set img_verify disabled || set img_verify enabled
+goto menu
+
+:cmdline
+echo -n Enter extra cmdline options:${space} && read cmdline
+set default_cmdline modified
+goto menu
+
+:start_sshd
+clear start_sshd
+echo -n Enter url to ssh key:${space} && read ssh_key
+isset ${ssh_key} && set start_sshd yes || set start_sshd no
+iseq ${start_sshd} yes && set ssh_key ssh_key=${ssh_key} || clear ssh_key
+goto menu
+
+:boot
+isset ${console} && set console console=${console} ||
+set img-url ${mirror}/netboot-${version}/${arch}
+set sig-url ${img-url}
+set repo-url http://dl-cdn.alpinelinux.org/alpine/${branch}/main
+set modloop-url ${img-url}/modloop-${flavor}
+imgfree
+kernel ${img-url}/vmlinuz-${flavor} ${cmdline} alpine_repo=${repo-url} modloop=${modloop-url} ${console} ${acpi} ${ssh_key}
+initrd ${img-url}/initramfs-${flavor}
+iseq ${img_verify} enabled && goto verify_img || goto no_img_verify
+:verify_img
+imgverify vmlinuz-${flavor} ${sig-url}/vmlinuz-${flavor}.sig
+imgverify initramfs-${flavor} ${sig-url}/initramfs-${flavor}.sig
+:no_img_verify
+boot
+goto alpine_exit
+
+:reboot
+reboot
+
+:poweroff
+poweroff
+
+:alpine_exit
+clear menu
+exit 0
