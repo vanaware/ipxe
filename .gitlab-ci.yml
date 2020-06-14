@@ -28,13 +28,15 @@ prepare:githubscript:
     only:
         - alpine
 
-prepare:docs:
+prepare:gh-pages:
     image: busybox:musl
     stage: prepare
     variables:
         GIT_DEPTH: '1'
     before_script:
         - mkdir -p docs
+    script:
+        - ls -la docs/
     artifacts:
         paths:
             - docs/*
@@ -152,10 +154,10 @@ deploy:
     variables:
         GIT_STRATEGY: none
     dependencies:
-        - prepare:downloads:
-        - prepare:githubscript:
-        - prepare:netboot:
-        - prepare:docs:
+        - prepare:downloads
+        - prepare:githubscript
+        - prepare:netboot
+        - prepare:gh-pages
     before_script:
         - apk add --no-cache git
         - git clone --branch=gh-pages --depth 1 ${CI_REPOSITORY_URL} gh-pages
