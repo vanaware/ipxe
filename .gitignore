@@ -1,4 +1,4 @@
 .vs/
-options
+artifacts/
 src/*.pem
 src/*script
