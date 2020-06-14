@@ -8,7 +8,7 @@ stages:
 .workaround-on: &workaround-on
 - sed -i '/-fno-pie/s/^#//' Makefile.housekeeping
 
-prepare:gh-pages:
+prepare:docs:
     image: busybox:musl
     stage: prepare
     variables:
@@ -21,7 +21,7 @@ prepare:gh-pages:
         - mv -vf certs/ssh_key alpine/
         - mv -vf scripts/boot.ipxe alpine/
     artifacts:
-        name: gh-pages
+        name: docs
         paths:
             - docs/*
             - alpine/ssh_key
@@ -81,7 +81,7 @@ prepare:netboot:
         name: ${EMBEDSCRIPT}
         paths:
             - artifacts/${EMBEDSCRIPT}.tar.gz
-        expire_in: 1 day
+        expire_in: 5 hrs
     cache:
         paths:
             - src/bin*/*.o
@@ -123,14 +123,17 @@ prepare:downloads:
         - ls artifacts -la
         - mkdir -p alpine
     script:
-        - zip -r alpine/download.zip artifacts/* && tar -czvf alpine/download.tar.gz artifacts/*
-        - rm -rf artifacts
+        - cd artifacts
+        - zip -r ../alpine/download.zip *.tar.gz
+        - tar -czvf ../alpine/download.tar.gz *.tar.gz
+        - cd ..
     after_script:
-        - tar -tvf alpine/download.tar.gz
+        - rm -rf artifacts
     artifacts:
         name: downloads
         paths:
             - alpine/download.*
+        expire_in: 5 hrs
     only:
         - alpine
 
@@ -142,7 +145,7 @@ deploy:
     dependencies:
         - prepare:downloads
         - prepare:netboot
-        - prepare:gh-pages
+        - prepare:docs
     before_script:
         - apk add --no-cache git
         - git clone --branch=gh-pages --depth 1 ${CI_REPOSITORY_URL} gh-pages
@@ -151,6 +154,7 @@ deploy:
         - git config user.email ${GITLAB_USER_EMAIL}
         - git config http.sslverify 'false'
         - git remote set-url --push origin https://${TOKEN}:x-oauth-basic@github.com/vanaware/ipxe.git
+        - mkdir -p alpine
         - cd ..
     script:
         - (cd alpine && tar c .) | (cd gh-pages/alpine && tar xf -)
@@ -170,6 +174,10 @@ deploy:
     after_script:
         - rm -fr alpine
         - rm -fr docs
-        - rm -fr gh-pages
+        - rm -fr gh-pages/.git
+    artifacts:
+        name: gh-pages
+        paths:
+            - gh-pages
     only:
         - alpine
