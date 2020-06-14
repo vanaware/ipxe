@@ -151,9 +151,13 @@ deploy:
         - git config user.email ${GITLAB_USER_EMAIL}
         - git config http.sslverify 'false'
         - git remote set-url --push origin https://${TOKEN}:x-oauth-basic@github.com/vanaware/ipxe.git
+        - cd ..
     script:
-        - mv -vf ../alpine ./
-        - mv -vf ..docs/* ./
+        - tar cvBf - alpine | (cd /your/target/folder ; tar xBf -)
+        - tar cvBf - <sourcefolder> | (cd /your/target/folder ; tar xBf -)
+        - (cd alpine && tar c .) | (cd gh-pages/alpine && tar xf -)
+        - (cd docs && tar c .) | (cd gh-pages && tar xf -)
+        - cd gh-pages
         - git add index.md
         - git add _config.yml
         - git add .gitignore
@@ -164,8 +168,10 @@ deploy:
         - git add alpine/netboot*
         - git commit -m "GitLab Runner Pipeline at ${CI_PIPELINE_URL}"
         - git push origin gh-pages
-    after_script:
         - cd ..
+    after_script:
+        - rm -fr alpine
+        - rm -fr docs
         - rm -fr gh-pages
     only:
         - alpine
