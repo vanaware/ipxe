@@ -4,29 +4,9 @@ stages:
     - deploy
 
 .workaround-off: &workaround-off
-- sed -i '/CFLAGS += $(WORKAROUND_CFLAGS) $(EXTRA_CFLAGS) -fno-pie/s/^/#/' Makefile.housekeeping
-- sed -i '/#CFLAGS += $(WORKAROUND_CFLAGS) $(EXTRA_CFLAGS)  /s/^#//' Makefile.housekeeping
+- sed -i '/-fno-pie/s/^C/#/' Makefile.housekeeping
 .workaround-on: &workaround-on
-- sed -i '/CFLAGS += $(WORKAROUND_CFLAGS) $(EXTRA_CFLAGS) -fno-pie/s/^#//' Makefile.housekeeping
-- sed -i '/#CFLAGS += $(WORKAROUND_CFLAGS) $(EXTRA_CFLAGS)  /s/^/#/' Makefile.housekeeping
-
-prepare:githubscript:
-    image: busybox:musl
-    stage: prepare
-    variables:
-        GIT_DEPTH: '1'
-    before_script:
-        - mkdir -p alpine
-    script:
-        - mv -vf certs/ssh_key alpine/
-        - mv -vf scripts/boot.ipxe alpine/
-    artifacts:
-        paths:
-            - alpine/ssh_key
-            - alpine/boot.ipxe
-        expire_in: 5 hrs
-    only:
-        - alpine
+- sed -i '/-fno-pie/s/^#//' Makefile.housekeeping
 
 prepare:gh-pages:
     image: busybox:musl
@@ -35,11 +15,17 @@ prepare:gh-pages:
         GIT_DEPTH: '1'
     before_script:
         - mkdir -p docs
+        - mkdir -p alpine
+    dependencies: []
     script:
-        - ls -la docs/
+        - mv -vf certs/ssh_key alpine/
+        - mv -vf scripts/boot.ipxe alpine/
     artifacts:
+        name: gh-pages
         paths:
             - docs/*
+            - alpine/ssh_key
+            - alpine/boot.ipxe
         expire_in: 5 hrs
     only:
         - alpine
@@ -53,9 +39,11 @@ prepare:netboot:
     before_script:
         - apk add --no-cache openssl
         - mkdir -p alpine/netboot-${VERSION}/
+    dependencies: []
     script:
         - mv -vf netboot/${VERSION}/* alpine/netboot-${VERSION}/
     artifacts:
+        name: netboot-${VERSION}
         paths:
             - alpine/netboot-${VERSION}/*
         expire_in: 5 hrs
@@ -90,6 +78,7 @@ prepare:netboot:
     after_script:
         - tar -tvf artifacts/${EMBEDSCRIPT}.tar.gz
     artifacts:
+        name: ${EMBEDSCRIPT}
         paths:
             - artifacts/${EMBEDSCRIPT}.tar.gz
         expire_in: 1 day
@@ -101,25 +90,21 @@ prepare:netboot:
 
 build:githubscript:
     extends: .buildtemplate
-    #extends: .buildtest
     variables:
         EMBEDSCRIPT: githubscript
 
 build:tftpscript:
     extends: .buildtemplate
-    #extends: .buildtest
     variables:
         EMBEDSCRIPT: tftpscript
 
 build:lanscript:
     extends: .buildtemplate
-    #extends: .buildtest
     variables:
         EMBEDSCRIPT: lanscript
 
 build:wanscript:
     extends: .buildtemplate
-    #extends: .buildtest
     variables:
         EMBEDSCRIPT: wanscript
 
@@ -143,6 +128,7 @@ prepare:downloads:
     after_script:
         - tar -tvf alpine/download.tar.gz
     artifacts:
+        name: downloads
         paths:
             - alpine/download.*
     only:
@@ -155,7 +141,6 @@ deploy:
         GIT_STRATEGY: none
     dependencies:
         - prepare:downloads
-        - prepare:githubscript
         - prepare:netboot
         - prepare:gh-pages
     before_script:
