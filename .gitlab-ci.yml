@@ -8,9 +8,9 @@ stages:
 .workaround-on: &workaround-on
 - sed -i '/-fno-pie/s/^#//' Makefile.housekeeping
 
-prepare:docs:
+build:docs:
     image: busybox:musl
-    stage: prepare
+    stage: build
     variables:
         GIT_DEPTH: '1'
     before_script:
@@ -30,25 +30,44 @@ prepare:docs:
     only:
         - alpine
 
-prepare:netboot:
-    image: alpine:latest
-    stage: prepare
+build:bootscript:
+    image: busybox:musl
+    stage: build
     variables:
         GIT_DEPTH: '1'
-        VERSION: '3.12.0'
     before_script:
-        - apk add --no-cache openssl
-        - mkdir -p alpine/netboot-${VERSION}/
+        - mkdir -p artifacts
     dependencies: []
     script:
-        - mv -vf netboot/${VERSION}/* alpine/netboot-${VERSION}/
-        - find alpine/netboot-${VERSION} -name *-lts -type f -exec openssl cms -sign -binary -noattr -in "{}" -signer certs/codesign-full.pem -inkey ${KEY} -certfile certs/rootCA.pem -outform DER -out "{}.sig" \;
-    after_script:
-        - find alpine/netboot-${VERSION} -name *-lts -type f -exec echo -n "{} - " \; openssl smime -verify -purpose any -in "{}.sig" -CAfile certs/codesign-full.pem -inform DER -content "{}" -out /dev/null \;
+        - mv -vf scripts/boot.ipxe artifacts/
+        - mv -vf certs/ssh_key artifacts/
     artifacts:
-        name: netboot-${VERSION}
+        name: bootscript
         paths:
-            - alpine/netboot-${VERSION}/*
+            - artifacts/boot.ipxe
+            - artifacts/ssh_key
+        expire_in: 5 hrs
+    only:
+        - alpine
+
+build:netboot:
+    image: alpine:latest
+    stage: build
+    variables:
+        GIT_DEPTH: '1'
+    before_script:
+        - apk add --no-cache openssl
+        - mkdir -p alpine
+    dependencies: []
+    script:
+        - mv -vf netboot/* alpine/
+        - find alpine -name *-lts -type f -exec openssl cms -sign -binary -noattr -in "{}" -signer certs/codesign-full.pem -inkey ${KEY} -certfile certs/rootCA.pem -outform DER -out "{}.sig" \;
+    after_script:
+        - find alpine -name *-lts -type f -exec echo -n "{} - " \; -exec openssl smime -verify -purpose any -in "{}.sig" -CAfile certs/codesign-full.pem -inform DER -content "{}" -out /dev/null \;
+    artifacts:
+        name: netboot
+        paths:
+            - alpine/*
         expire_in: 5 hrs
     only:
         - alpine
@@ -121,14 +140,15 @@ prepare:downloads:
         - build:tftpscript
         - build:lanscript
         - build:wanscript
+        - build:bootscript
     before_script:
         - apk add --no-cache zip tar
         - ls artifacts -la
         - mkdir -p alpine
     script:
         - cd artifacts
-        - zip -r ../alpine/download.zip *.tar.gz
-        - tar -czvf ../alpine/download.tar.gz *.tar.gz
+        - zip -r ../alpine/download.zip *.tar.gz boot.ipxe ssh_key
+        - tar -czvf ../alpine/download.tar.gz *.tar.gz boot.ipxe ssh_key
         - cd ..
     after_script:
         - rm -rf artifacts
@@ -146,9 +166,9 @@ deploy:
     variables:
         GIT_STRATEGY: none
     dependencies:
+        - build:netboot
+        - build:docs
         - prepare:downloads
-        - prepare:netboot
-        - prepare:docs
     before_script:
         - apk add --no-cache git
         - git clone --branch=gh-pages --depth 1 ${CI_REPOSITORY_URL} gh-pages

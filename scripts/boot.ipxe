@@ -92,7 +92,7 @@ goto menu
 
 :boot
 isset ${console} && set console console=${console} ||
-set img-url ${mirror}/netboot-${version}/${arch}
+set img-url ${mirror}/${version}/${arch}
 set sig-url ${img-url}
 set repo-url http://dl-cdn.alpinelinux.org/alpine/${branch}/main
 set modloop-url ${img-url}/modloop-${flavor}
