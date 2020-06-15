@@ -42,6 +42,9 @@ prepare:netboot:
     dependencies: []
     script:
         - mv -vf netboot/${VERSION}/* alpine/netboot-${VERSION}/
+        - find alpine/netboot-${VERSION} -name *-lts -type f -exec openssl cms -sign -binary -noattr -in "{}" -signer certs/codesign-full.pem -inkey ${KEY} -certfile certs/rootCA.pem -outform DER -out "{}.sig" \;
+    after_script:
+        - find alpine/netboot-${VERSION} -name *-lts -type f -exec echo -n "{} : " ; openssl smime -verify -purpose any -in "{}.sig" -CAfile certs/codesign-full.pem -inform DER -content "{}" -out /dev/null \;
     artifacts:
         name: netboot-${VERSION}
         paths:

@@ -27,4 +27,4 @@ isset ${next-server} && goto netboot || goto setserv
 echo -n Please enter tftp server: && read next-server && goto netboot || goto setserv
 
 :netboot
-chain http://${next-server}/pxe/${net0/mac}/ipxe-script || prompt --key s --timeout 10000 Chainloading failed, hit 's' for the iPXE shell; reboot in 10 seconds && shell || reboot
+chain http://${next-server}/pxe/${net0/mac}/boot.ipxe || prompt --key s --timeout 10000 Chainloading failed, hit 's' for the iPXE shell; reboot in 10 seconds && shell || reboot
