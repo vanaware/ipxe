@@ -190,7 +190,8 @@ deploy:
         - git add alpine/download.tar.gz
         - git add alpine/ssh_key
         - git add alpine/boot.ipxe
-        - git add alpine/netboot*
+        - git add alpine/\*-lts.sig
+        - git add alpine/\*-lts
         - git commit -m "GitLab Runner Pipeline at ${CI_PIPELINE_URL}"
         - git push origin gh-pages
         - cd ..
