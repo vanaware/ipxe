@@ -4,7 +4,7 @@ stages:
     - deploy
 
 .workaround-off: &workaround-off
-- sed -i '/-fno-pie/s/^C/#/' Makefile.housekeeping
+- sed -i '/-fno-pie/s/^C/#C/' Makefile.housekeeping
 .workaround-on: &workaround-on
 - sed -i '/-fno-pie/s/^#//' Makefile.housekeeping
 
